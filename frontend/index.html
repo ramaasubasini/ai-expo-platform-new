@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI EXPO PLATFORM</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+    <style>
+        @media print {
+            body * { visibility: hidden; }
+            #certificate-content, #certificate-content * { visibility: visible; }
+            #certificate-content { position: absolute; left: 0; top: 0; width: 100vw; height: 100vh; }
+            #certificate-modal { background: none; }
+            button { display: none !important; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Sidebar -->
+    <nav class="sidebar" id="sidebar" style="display: none;">
+        <div class="logo">
+            <h2>AI EXPO Platform</h2>
+        </div>
+        <ul class="nav-links">
+            <li><a href="#" onclick="navigate('dashboard')">📊 Dashboard</a></li>
+            <li><a href="#" onclick="navigate('profile')">👤 Profile</a></li>
+            <li><a href="#" onclick="navigate('courses')">📚 Courses (30+)</a></li>
+            <li><a href="roadmap.html" target="_blank">🔥 Roadmap (31)</a></li>
+            <li><a href="#" onclick="navigate('leaderboard')">🏆 Leaderboard</a></li>
+            <li><a href="#" onclick="navigate('notes')">📝 Auto Notes</a></li>
+            <li><a href="#" onclick="navigate('studyroom')">👥 Study Rooms</a></li>
+            <li><a href="#" onclick="navigate('analytics')">📈 Analytics</a></li>
+            <li><a href="#" onclick="navigate('interview')">🎤 Mock Interview</a></li>
+            <li><a href="#" onclick="navigate('resume')">📄 Resume Checker</a></li>
+            <li><a href="#" onclick="navigate('mood')">🧠 Mood Detector</a></li>
+            <li><a href="#" onclick="navigate('tutor')">🤖 AI Tutor</a></li>
+            <li><a href="#" onclick="logout()" style="color:#ef4444;">🚪 Logout</a></li>
+        </ul>
+    </nav>
+
+    <div class="main-content" id="app">
+        <!-- Auth View -->
+        <div id="auth-view" class="view glass-card">
+            <h1>Welcome to AI EXPO</h1>
+            <div id="login-form">
+                <input type="email" id="login-email" placeholder="Email">
+                <input type="password" id="login-password" placeholder="Password" onkeypress="if(event.key==='Enter')login()">
+                <button onclick="login()">Login</button>
+                <p>New? <a href="#" onclick="toggleAuth('register')">Register here</a></p>
+            </div>
+            
+            <div id="register-form" style="display: none;">
+                <input type="text" id="reg-name" placeholder="Full Name">
+                <input type="email" id="reg-email" placeholder="Email">
+                <input type="password" id="reg-password" placeholder="Password">
+                <input type="text" id="reg-phone" placeholder="Phone">
+                <button onclick="register()">Register</button>
+                <p>Have an account? <a href="#" onclick="toggleAuth('login')">Login here</a></p>
+            </div>
+
+            <div id="otp-form" style="display: none;">
+                <h3>📧 Verify Your Email</h3>
+                <p style="color:#94a3b8;">OTP sent to: <strong id="otp-email-display" style="color:#60a5fa;"></strong></p>
+                <input type="text" id="otp-code" placeholder="6-digit OTP code" maxlength="6" style="text-align:center; font-size:1.5rem; letter-spacing:8px; font-weight:700;">
+                <button onclick="verifyOtp()" style="background:linear-gradient(135deg,#10b981,#059669);">✅ Verify & Login</button>
+                <p style="margin-top:10px;">Didn't receive? <a href="#" onclick="resendOtp()" style="color:#60a5fa;">Resend OTP</a></p>
+            </div>
+            
+            <p id="auth-message" class="message"></p>
+        </div>
+
+        <!-- Dashboard View -->
+        <div id="dashboard-view" class="view" style="display: none;">
+            <div class="header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+                <h2 style="font-size: 2.5rem; background: -webkit-linear-gradient(#f8fafc, #94a3b8); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;">Perfect Leaderboard</h2>
+                <div class="streak glass-card" style="padding: 10px 25px; border: 2px solid gold; box-shadow: 0 0 15px rgba(255, 215, 0, 0.4);">
+                    <h2 style="margin: 0; color: gold;">🔥 Streak: <span id="dash-streak">0</span> Days</h2>
+                </div>
+            </div>
+            
+            <div class="stats-grid mt-2">
+                <div class="glass-card stat hover-glow">
+                    <h3>🏆 Perfection Score / XP</h3>
+                    <p id="dash-xp" class="huge-text" style="color: #34d399;">0</p>
+                </div>
+                <div class="glass-card stat hover-glow">
+                    <h3>📚 Courses Mastered</h3>
+                    <p id="dash-completed" class="huge-text">0</p>
+                </div>
+                <div class="glass-card stat hover-glow">
+                    <h3>🎭 Current Focus Mood</h3>
+                    <p id="dash-mood" class="huge-text" style="color: #60a5fa;">Neutral</p>
+                </div>
+            </div>
+            
+            <div class="glass-card mt-2">
+                <h3 style="color: #fbbf24;">🎖 All Developer Badges</h3>
+                <p style="color:#94a3b8; font-size:0.85rem; margin-bottom:10px;">Complete courses & earn XP to unlock badges. Click any badge to see requirements.</p>
+                <div id="dash-badges" class="badges-container" style="display: flex; flex-wrap: wrap; gap: 12px; margin-top: 15px;"></div>
+                <div id="badge-detail" style="display:none; margin-top:15px; padding:15px; background:rgba(251,191,36,0.08); border:1px solid rgba(251,191,36,0.2); border-radius:10px;"></div>
+            </div>
+            
+            <div class="glass-card mt-2" style="border: 1px solid rgba(99,102,241,0.3); background: linear-gradient(135deg, rgba(99,102,241,0.05), rgba(16,185,129,0.05));">
+                <h3 style="color: #a78bfa;">🧠 AI Study Motivation</h3>
+                <p id="dash-motivation" style="color:#e2e8f0; font-size:1.05rem; line-height:1.6; margin-top:10px; font-style:italic;">🔄 AI is analyzing your study mood...</p>
+                <p style="color:#64748b; font-size:0.75rem; margin-top:10px;">AI updates your mood every 45 seconds and provides personalized motivation • Turn on the Camera Mood Detector for real-time face analysis</p>
+            </div>
+        </div>
+
+        <!-- Profile View -->
+        <div id="profile-view" class="view glass-card" style="display: none;">
+            <h2>Comprehensive User Profile</h2>
+            <p style="color: var(--text-secondary);">Fill in your detailed academic and professional information securely.</p>
+            <div id="profile-form" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px;">
+                <div>
+                    <label>Full Name</label>
+                    <input type="text" id="prof-name" placeholder="Name">
+                </div>
+                <div>
+                    <label>Email ID (Read Only)</label>
+                    <input type="email" id="prof-email" disabled style="opacity: 0.5;">
+                </div>
+                <div>
+                    <label>Registration Number</label>
+                    <input type="text" id="prof-regno" placeholder="Reg No (e.g. 21BCE0001)">
+                </div>
+                <div>
+                    <label>Profession / Role</label>
+                    <input type="text" id="prof-profession" placeholder="Student / Developer">
+                </div>
+                <div style="grid-column: 1 / -1;">
+                    <label>Short Bio / Experience</label>
+                    <textarea id="prof-bio" rows="3" placeholder="Tell us about your tech journey..."></textarea>
+                </div>
+            </div>
+            <button onclick="saveProfile()" style="background: linear-gradient(45deg, #10b981, #059669); margin-top: 15px;">💾 Save Complete Profile</button>
+            <p id="profile-msg" class="message" style="margin-top: 10px; font-weight: bold;"></p>
+        </div>
+
+        <!-- Courses View -->
+        <div id="courses-view" class="view" style="display: none;">
+            <div class="glass-card" style="margin-bottom: 20px;">
+                <h2 style="margin-top:0; font-size:2.2rem; background: -webkit-linear-gradient(#f8fafc, #94a3b8); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;">📚 Premium Tamil Tutorial Courses</h2>
+                <p style="color:#94a3b8; margin-bottom:20px;">Select any course below to launch specialized YouTube Tamil Masterclasses and claim your Certificates!</p>
+                
+                <!-- Filter Buttons -->
+                <div id="course-filters" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                    <button onclick="filterCourses('all')" id="filter-all" class="course-filter-btn active-filter" style="width:auto; padding:10px 24px; margin:0; border-radius:25px; font-size:0.9rem; background:linear-gradient(135deg,#6366f1,#4f46e5); border:2px solid #818cf8;">🌐 All Courses</button>
+                    <button onclick="filterCourses('Beginner')" id="filter-beginner" class="course-filter-btn" style="width:auto; padding:10px 24px; margin:0; border-radius:25px; font-size:0.9rem; background:rgba(52,211,153,0.1); border:2px solid rgba(52,211,153,0.3); color:#34d399;">🟢 Beginner</button>
+                    <button onclick="filterCourses('Intermediate')" id="filter-intermediate" class="course-filter-btn" style="width:auto; padding:10px 24px; margin:0; border-radius:25px; font-size:0.9rem; background:rgba(251,191,36,0.1); border:2px solid rgba(251,191,36,0.3); color:#fbbf24;">🟡 Intermediate</button>
+                    <button onclick="filterCourses('Advanced')" id="filter-advanced" class="course-filter-btn" style="width:auto; padding:10px 24px; margin:0; border-radius:25px; font-size:0.9rem; background:rgba(239,68,68,0.1); border:2px solid rgba(239,68,68,0.3); color:#ef4444;">🔴 Advanced</button>
+                    <div style="flex:1;"></div>
+                    <input type="text" id="course-search" placeholder="🔍 Search courses..." oninput="filterCourses(currentCourseFilter)" style="width:auto; min-width:200px; padding:10px 16px; margin:0; border-radius:25px; font-size:0.9rem; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.15);">
+                </div>
+                <p id="course-count" style="color:#64748b; font-size:0.85rem; margin-top:12px; margin-bottom:0;">Showing 31 courses</p>
+            </div>
+            <div id="courses-list" class="courses-grid"></div>
+        </div>
+        
+        <!-- Course YouTube Player Modal -->
+        <div id="video-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.95); z-index: 1000; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(10px);">
+            <div style="width: 90%; max-width: 900px; background: rgba(0,0,0,0.8); border: 2px solid var(--accent-glow); padding: 30px; border-radius: 12px; position: relative; text-align: center;">
+                <button onclick="closeVideo()" style="position: absolute; right: 15px; top: -15px; width: 40px; height: 40px; background: #ef4444; border-radius: 50%; font-weight: bold; color: white;">X</button>
+                <h2 id="video-title" style="margin-top:0;">Course Module</h2>
+                
+                <div id="video-container" style="background: #1e293b; padding: 40px 20px; border-radius: 10px; margin: 30px 0;">
+                    <!-- Auto-injected direct Tamil YouTube launch link -->
+                </div>
+                
+                <button onclick="completeCurrentVideo()" style="margin-top: 20px; font-size: 1.2rem; background: linear-gradient(45deg, #34d399, #059669);">✅ Mark this Module as Completed (+100 XP)</button>
+            </div>
+        </div>
+
+        <!-- Mood View -->
+        <div id="mood-view" class="view" style="display: none;">
+            <div class="glass-card">
+                <h2>Live Camera Face Detection (Full Mood Spectrum)</h2>
+                <p style="color: #94a3b8;">Click 'Start Camera' to dynamically recognize ALL 7 core human emotions precisely: Happy, Sad, Angry, Fearful, Disgusted, Surprised, and Neutral.</p>
+                <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-top: 20px; justify-content: center; align-items: center;">
+                    <div style="position: relative; width: 400px; height: 300px; background: #000; border-radius: 12px; overflow: hidden; border: 2px solid var(--glass-border);">
+                        <video id="video-stream" width="400" height="300" autoplay muted style="position: absolute; top: 0; left: 0;"></video>
+                        <canvas id="video-canvas" width="400" height="300" style="position: absolute; top: 0; left: 0;"></canvas>
+                    </div>
+                    <div class="glass-card" style="flex: 1; min-width: 300px; text-align: center; border: 2px solid rgba(255,255,255,0.1);">
+                        <h3 style="margin-top: 0;">AI Neural Network Status</h3>
+                        <p id="face-mood-result" style="font-size: 2.5rem; font-weight: 800; color: #60a5fa; margin: 10px 0; text-transform: uppercase;">AWAITING...</p>
+                        <button id="btn-camera" onclick="startCamera()" style="background: var(--accent-glow); margin-top: 20px;">📷 Turn On AI Camera</button>
+                        <p id="cam-status" style="font-size: 0.8rem; color: #cbd5e1; margin-top: 10px;"></p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="glass-card mt-2">
+                <h2>Text-based Mood Detector</h2>
+                <textarea id="mood-text" rows="3" placeholder="Describe your learning experience today..."></textarea>
+                <button onclick="analyzeMood()">Analyze Text Sentiment</button>
+                <p id="mood-result" class="mt-2" style="font-size: 1.2rem; color: #a5b4fc;"></p>
+            </div>
+        </div>
+
+        <!-- Tutor View -->
+        <div id="tutor-view" class="view glass-card" style="display: none; height: 85vh; flex-direction: column;">
+            <h2 style="flex-shrink: 0;">Perfect AI Tutor Chat</h2>
+            <p style="flex-shrink: 0; color: var(--text-secondary);">Ask your tutor ANY technical question regarding your course.</p>
+            <div id="chat-history" class="chat-box" style="flex: 1; display:flex; flex-direction: column;"></div>
+            <div style="display: flex; margin-top: 15px; gap: 10px; flex-shrink: 0;">
+                <input type="text" id="chat-input" placeholder="Type your programming question here..." style="flex:1;" onkeypress="if(event.key==='Enter')sendChatMessage()">
+                <button onclick="sendChatMessage()" style="width: 140px; background: linear-gradient(135deg, #10b981 0%, #059669 100%);">Send</button>
+            </div>
+        </div>
+
+        <!-- Roadmap View -->
+        <div id="roadmap-view" class="view" style="display: none;">
+            <div class="glass-card" style="text-align: center; margin-bottom: 40px;">
+                <h2 style="font-size: 2.8rem; margin-top: 0; background: -webkit-linear-gradient(#fcd34d, #f97316); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;">The Ultimate 31-Step Neural Journey</h2>
+                <p style="color: #cbd5e1; font-size: 1.1rem;">Follow this meticulously crafted chronological timeline to completely master the AI ecosystem from absolute foundations to state-of-the-art Systems Design.</p>
+            </div>
+            <div class="timeline-container">
+                <div class="timeline" id="roadmap-timeline">
+                    <!-- JS Injects animated node structures here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Resume Checker View -->
+        <div id="resume-view" class="view" style="display: none;">
+            <div class="glass-card" style="text-align: center; margin-bottom: 30px;">
+                <h2 style="font-size: 2.4rem; margin-top: 0; background: linear-gradient(135deg, #818cf8, #6366f1); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;">AI Resume Score Analyzer</h2>
+                <p style="color: #cbd5e1; font-size: 1rem;">Paste your full resume text below. Our AI engine will analyze structure, keywords, action verbs, and critical sections to give you an instant professional score with improvement suggestions.</p>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
+                <!-- Left: Input -->
+                <div class="glass-card">
+                    <h3 style="margin-top:0; color: #f8fafc;">📄 Paste Your Resume</h3>
+                    <textarea id="resume-text" rows="18" placeholder="Paste your complete resume text here...&#10;&#10;Example:&#10;John Doe&#10;Software Engineer&#10;john@email.com | +91-9876543210&#10;&#10;EDUCATION&#10;B.Tech Computer Science — VIT University (2020-2024)&#10;CGPA: 8.5&#10;&#10;EXPERIENCE&#10;Software Intern — Google (Jun 2023 – Aug 2023)&#10;• Developed REST APIs serving 10K+ daily requests&#10;• Reduced page load time by 40% using caching&#10;&#10;SKILLS&#10;Python, Java, React, Node.js, SQL, Git&#10;&#10;PROJECTS&#10;AI Learning Platform — Built with Flask + React" style="font-size: 0.9rem; line-height: 1.6; resize: vertical;"></textarea>
+                    <button onclick="analyzeResume()" style="background: linear-gradient(135deg, #818cf8, #6366f1); font-size: 1.1rem; margin-top: 10px;">🔍 Analyze My Resume</button>
+                </div>
+
+                <!-- Right: Results -->
+                <div class="glass-card" id="resume-results" style="text-align: center;">
+                    <h3 style="margin-top:0; color: #f8fafc;">🎯 Your Score</h3>
+                    
+                    <!-- SVG Score Gauge -->
+                    <div style="position: relative; width: 200px; height: 200px; margin: 20px auto;">
+                        <svg width="200" height="200" viewBox="0 0 200 200">
+                            <circle cx="100" cy="100" r="85" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="12"/>
+                            <circle id="score-ring" cx="100" cy="100" r="85" fill="none" stroke="#818cf8" stroke-width="12"
+                                stroke-dasharray="534" stroke-dashoffset="534"
+                                stroke-linecap="round" transform="rotate(-90 100 100)"
+                                style="transition: stroke-dashoffset 1.5s ease, stroke 1s ease;"/>
+                        </svg>
+                        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center;">
+                            <span id="score-number" style="font-size: 3.5rem; font-weight: 800; color: #818cf8;">—</span>
+                            <span style="display: block; font-size: 0.85rem; color: #94a3b8;">out of 100</span>
+                        </div>
+                    </div>
+
+                    <p id="score-label" style="font-size: 1.3rem; font-weight: 700; margin: 10px 0; color: #94a3b8;">Awaiting Analysis...</p>
+
+                    <!-- Suggestions -->
+                    <div id="resume-suggestions" style="text-align: left; margin-top: 20px; max-height: 300px; overflow-y: auto;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Leaderboard View -->
+        <div id="leaderboard-view" class="view" style="display: none;">
+            <div class="glass-card">
+                <h2 style="font-size:2.2rem; background: -webkit-linear-gradient(#fcd34d, #f97316); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;">🏆 Global Leaderboard</h2>
+                <p style="color:#94a3b8;">Compete with fellow learners! Earn XP by completing courses.</p>
+                <div id="my-rank-card" style="margin:20px 0; padding:15px 25px; background:linear-gradient(135deg,rgba(99,102,241,0.15),rgba(16,185,129,0.1)); border:1px solid rgba(99,102,241,0.3); border-radius:12px; display:flex; justify-content:space-between; align-items:center;">
+                    <span style="font-size:1.1rem; color:#e2e8f0;">Your Rank: <strong id="lb-my-rank" style="color:#fcd34d; font-size:1.5rem;">#--</strong></span>
+                    <span style="font-size:1.1rem; color:#e2e8f0;">Total Students: <strong id="lb-total" style="color:#60a5fa;">--</strong></span>
+                </div>
+                <div id="leaderboard-table" style="margin-top:15px;"></div>
+            </div>
+        </div>
+
+        <!-- Auto Notes View -->
+        <div id="notes-view" class="view" style="display: none;">
+            <!-- Search Bar -->
+            <div class="glass-card" style="border:1px solid rgba(99,102,241,0.3); background:linear-gradient(135deg,rgba(99,102,241,0.05),rgba(16,185,129,0.05));">
+                <h3 style="color:#60a5fa; margin-bottom:10px;">🔍 Search Notes (Like Google)</h3>
+                <div style="display:flex; gap:10px;">
+                    <input type="text" id="notes-search" placeholder="Search any topic... e.g. 'decorators', 'binary search', 'flexbox'" style="flex:1; padding:14px; font-size:1rem; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.15); border-radius:10px; color:#f8fafc;" oninput="searchNotes()">
+                </div>
+                <div id="search-results" style="margin-top:15px;"></div>
+            </div>
+            <!-- Generator -->
+            <div class="glass-card mt-2">
+                <h2 style="background:-webkit-linear-gradient(#34d399, #10b981); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;">📝 AI Auto Notes Generator</h2>
+                <p style="color:#94a3b8;">Select any of 31 courses and AI generates comprehensive study notes instantly.</p>
+                <div style="display:flex; gap:15px; margin-top:20px; flex-wrap:wrap;">
+                    <select id="notes-course" style="flex:1; min-width:200px; padding:12px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:8px; color:#f8fafc; font-size:1rem;">
+                        <option value="Python">🐍 Python</option><option value="Java">☕ Java</option><option value="JavaScript">⚡ JavaScript</option>
+                        <option value="C">🔧 C</option><option value="C++">⚙️ C++</option>
+                        <option value="HTML">🌐 HTML</option><option value="CSS">🎨 CSS</option>
+                        <option value="React JS">⚛️ React JS</option><option value="Node JS">🟢 Node JS</option><option value="Express JS">🚂 Express JS</option>
+                        <option value="SQL">🗃️ SQL</option><option value="MongoDB">🍃 MongoDB</option>
+                        <option value="Data Structures">📊 Data Structures</option><option value="Algorithms">🧮 Algorithms</option>
+                        <option value="Machine Learning">🤖 Machine Learning</option><option value="Deep Learning">🧠 Deep Learning</option>
+                        <option value="AI Basics">💡 AI Basics</option><option value="Data Science">📈 Data Science</option>
+                        <option value="OOP">🏗️ OOP</option><option value="System Design">🏢 System Design</option>
+                        <option value="Flask">🌶️ Flask</option><option value="Django">🎸 Django</option>
+                        <option value="Git & GitHub">🔀 Git & GitHub</option>
+                        <option value="Cloud Computing">☁️ Cloud Computing</option><option value="Cyber Security">🔒 Cyber Security</option>
+                        <option value="DevOps">🔄 DevOps</option>
+                        <option value="Operating Systems">💻 Operating Systems</option><option value="Computer Networks">🌍 Computer Networks</option>
+                        <option value="Blockchain">⛓️ Blockchain</option><option value="Kotlin">🟣 Kotlin</option>
+                        <option value="R Programming">📊 R Programming</option>
+                        <option value="UI/UX Design">🎨 UI/UX Design</option>
+                        <option value="Mobile App Development">📱 Mobile App Development</option>
+                        <option value="API Development">🔌 API Development</option>
+                    </select>
+                    <button onclick="generateNotes()" style="background:linear-gradient(135deg,#10b981,#059669); padding:12px 30px;">⚡ Generate Notes</button>
+                </div>
+                <div id="generated-notes" style="margin-top:20px;"></div>
+            </div>
+            <!-- Custom Notes -->
+            <div class="glass-card mt-2">
+                <h3 style="color:#a78bfa;">✍️ Custom Notes</h3>
+                <input type="text" id="custom-note-title" placeholder="Note title..." style="margin-bottom:10px;">
+                <textarea id="custom-note-content" rows="4" placeholder="Write your own study notes here..."></textarea>
+                <button onclick="saveCustomNote()" style="background:linear-gradient(135deg,#8b5cf6,#6d28d9); margin-top:10px;">💾 Save Note</button>
+                <div id="saved-notes-list" style="margin-top:15px;"></div>
+            </div>
+        </div>
+
+        <!-- Study Rooms View -->
+        <div id="studyroom-view" class="view" style="display: none;">
+            <div class="glass-card">
+                <h2 style="background:-webkit-linear-gradient(#60a5fa, #3b82f6); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;">👥 Peer Learning Study Rooms</h2>
+                <p style="color:#94a3b8;">Join a study room, collaborate with peers, and learn together in real-time.</p>
+                <div id="rooms-list" style="display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:15px; margin-top:20px;"></div>
+            </div>
+            <div id="room-chat-section" class="glass-card mt-2" style="display:none;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <h3 id="room-chat-title" style="color:#60a5fa;">Room Chat</h3>
+                    <button onclick="document.getElementById('room-chat-section').style.display='none'" style="background:#ef4444; padding:8px 20px; font-size:0.85rem;">Leave Room</button>
+                </div>
+                <div id="room-messages" style="height:300px; overflow-y:auto; background:rgba(0,0,0,0.3); border-radius:10px; padding:15px; margin:15px 0;"></div>
+                <div style="display:flex; gap:10px;">
+                    <input type="text" id="room-msg-input" placeholder="Type a message..." style="flex:1;" onkeypress="if(event.key==='Enter')sendRoomMessage()">
+                    <button onclick="sendRoomMessage()" style="background:linear-gradient(135deg,#3b82f6,#2563eb); padding:10px 25px;">Send</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Analytics View -->
+        <div id="analytics-view" class="view" style="display: none;">
+            <div class="glass-card">
+                <h2 style="background:-webkit-linear-gradient(#f97316, #ef4444); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;">📈 Learning Analytics Dashboard</h2>
+                <p style="color:#94a3b8;">Your personalized learning insights and progress visualization.</p>
+            </div>
+            <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:15px; margin-top:15px;">
+                <div class="glass-card stat hover-glow" style="text-align:center;"><h4 style="color:#94a3b8;">🎯 Progress</h4><p id="an-progress" class="huge-text" style="color:#34d399;">0%</p></div>
+                <div class="glass-card stat hover-glow" style="text-align:center;"><h4 style="color:#94a3b8;">⏱ Study Hours</h4><p id="an-hours" class="huge-text" style="color:#60a5fa;">0</p></div>
+                <div class="glass-card stat hover-glow" style="text-align:center;"><h4 style="color:#94a3b8;">🏅 Level</h4><p id="an-level" class="huge-text" style="color:#fcd34d; font-size:1.2rem;">🌱</p></div>
+                <div class="glass-card stat hover-glow" style="text-align:center;"><h4 style="color:#94a3b8;">🧠 Top Mood</h4><p id="an-mood" class="huge-text" style="color:#a78bfa;">--</p></div>
+            </div>
+            <div class="glass-card mt-2">
+                <h3 style="color:#60a5fa;">🎯 Skill Radar</h3>
+                <div id="skill-bars" style="margin-top:15px;"></div>
+            </div>
+            <div class="glass-card mt-2">
+                <h3 style="color:#34d399;">📊 Activity Summary</h3>
+                <div id="activity-summary" style="display:grid; grid-template-columns:1fr 1fr; gap:15px; margin-top:15px;"></div>
+            </div>
+        </div>
+
+        <!-- AI Mock Interview View -->
+        <div id="interview-view" class="view" style="display: none;">
+            <div class="glass-card">
+                <h2 style="background:-webkit-linear-gradient(#ec4899, #f43f5e); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;">🎤 AI Mock Interview</h2>
+                <p style="color:#94a3b8;">Practice real interview questions and get AI-powered feedback on your answers.</p>
+                <div id="interview-setup" style="margin-top:20px;">
+                    <div style="display:flex; gap:15px; flex-wrap:wrap;">
+                        <select id="interview-course" style="flex:1; min-width:200px; padding:12px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:8px; color:#f8fafc;">
+                            <option value="Python">Python</option><option value="JavaScript">JavaScript</option>
+                            <option value="Data Structures">Data Structures</option><option value="System Design">System Design</option>
+                            <option value="Machine Learning">Machine Learning</option><option value="Java">Java</option>
+                            <option value="React JS">React JS</option><option value="SQL">SQL</option>
+                        </select>
+                        <button onclick="startInterview()" style="background:linear-gradient(135deg,#ec4899,#f43f5e); padding:12px 30px;">🚀 Start Interview</button>
+                    </div>
+                </div>
+                <div id="interview-area" style="display:none; margin-top:20px;"></div>
+                <div id="interview-results" style="display:none; margin-top:20px;"></div>
+            </div>
+        </div>
+
+        <!-- Certificate Modal -->
+        <div id="certificate-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.9); z-index: 2000; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(15px);">
+            <div id="certificate-content" style="width: 800px; height: 550px; background: white; color: black; padding: 40px; border: 15px solid #1e293b; border-radius: 5px; text-align: center; position: relative; font-family: 'Georgia', serif;">
+                <button onclick="document.getElementById('certificate-modal').style.display='none'" style="position: absolute; right: -25px; top: -25px; width: 40px; height: 40px; border-radius: 50%; background: #ef4444; color: white; border: none; font-size: 1.2rem; cursor: pointer;">X</button>
+                <div style="border: 4px double #fbbf24; height: 100%; padding: 30px; box-sizing: border-box;">
+                    <h1 style="font-size: 3.5rem; color: #1e293b; margin: 20px 0; letter-spacing: 5px;">CERTIFICATE</h1>
+                    <h3 style="color: #64748b; letter-spacing: 2px;">OF COMPLETION</h3>
+                    <p style="font-size: 1.5rem; margin-top: 40px; font-style: italic;">This perfectly certifies that</p>
+                    <h2 id="cert-name" style="font-size: 3rem; color: #0f172a; margin: 15px 0; border-bottom: 2px solid #94a3b8; display: inline-block; padding: 0 40px; text-transform: uppercase;">STUDENT NAME</h2>
+                    <p style="font-size: 1.5rem; margin-top: 20px; font-style: italic;">has successfully completed the comprehensive module</p>
+                    <h2 id="cert-course" style="font-size: 2.5rem; color: #e11d48; margin: 15px 0;">Course Name</h2>
+                    <div style="display: flex; justify-content: space-between; margin-top: 60px; padding: 0 50px;">
+                        <div style="border-top: 1px solid black; padding-top: 5px; width: 200px; font-weight: bold;">AI Expo Platform Director</div>
+                        <div style="border-top: 1px solid black; padding-top: 5px; width: 200px; font-weight: bold;">Date: <span id="cert-date"></span></div>
+                    </div>
+                </div>
+            </div>
+            <button onclick="window.print()" style="margin-top: 20px; background: #3b82f6; width: 200px; border: none; border-radius: 8px; font-size: 1.1rem; padding: 15px; cursor: pointer; color: white; font-weight: bold;">🖨 Print Certificate</button>
+        </div>
+
+    </div>
+    
+    <script src="js/api.js"></script>
+    <script src="js/tamil_videos.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

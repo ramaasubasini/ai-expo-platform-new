@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI EXPO — Complete 31-Course Learning Roadmap</title>
+    <meta name="description" content="Master the full AI engineering stack with our detailed 31-course roadmap, from Python fundamentals through System Design mastery.">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/roadmap.css">
+</head>
+<body>
+
+    <!-- Back Button -->
+    <a href="index.html" class="back-btn">← Back to Platform</a>
+
+    <!-- Header -->
+    <header class="roadmap-header">
+        <h1>The Ultimate 31-Course Roadmap</h1>
+        <p>Your complete learning path from absolute beginner to industry-ready engineer. Click any course to expand its detailed topic breakdown, estimated duration, and prerequisites.</p>
+    </header>
+
+    <!-- Stats Pills -->
+    <div class="stats-bar">
+        <div class="stat-pill">
+            <span style="color: var(--green);">●</span>
+            Beginner: <strong id="stat-beginner">0</strong> courses
+        </div>
+        <div class="stat-pill">
+            <span style="color: var(--yellow);">●</span>
+            Intermediate: <strong id="stat-intermediate">0</strong> courses
+        </div>
+        <div class="stat-pill">
+            <span style="color: var(--red);">●</span>
+            Advanced: <strong id="stat-advanced">0</strong> courses
+        </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="filter-bar">
+        <button class="filter-btn active" data-filter="All" onclick="renderTimeline('All')">🔷 All (31)</button>
+        <button class="filter-btn" data-filter="Beginner" onclick="renderTimeline('Beginner')">🟢 Beginner</button>
+        <button class="filter-btn" data-filter="Intermediate" onclick="renderTimeline('Intermediate')">🟡 Intermediate</button>
+        <button class="filter-btn" data-filter="Advanced" onclick="renderTimeline('Advanced')">🔴 Advanced</button>
+    </div>
+
+    <!-- Timeline -->
+    <div class="timeline-wrapper">
+        <div class="timeline-spine"></div>
+        <div id="timeline-nodes"></div>
+    </div>
+
+    <script src="js/tamil_videos.js"></script>
+    <script src="js/roadmap.js"></script>
+</body>
+</html>
