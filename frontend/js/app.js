@@ -1,6 +1,8 @@
 let currentEmail = '';
 let currentVideoCourse = '';
 let currentUserName = '';
+let pendingRoomId = new URLSearchParams(window.location.search).get('room');
+let jitsiApi = null;
 
 function toggleAuth(type) {
     document.getElementById('login-form').style.display = type === 'login' ? 'block' : 'none';
@@ -107,7 +109,17 @@ async function login() {
         }
         currentEmail = res.data.email;
         document.getElementById('sidebar').style.display = 'block';
-        navigate('dashboard');
+        
+        // Handle deep-linked room invite
+        if (pendingRoomId) {
+            navigate('studyroom');
+            joinRoom(pendingRoomId, 'Invited Room');
+            pendingRoomId = null;
+            // Clean up URL
+            window.history.replaceState({}, document.title, window.location.pathname);
+        } else {
+            navigate('dashboard');
+        }
     } else {
         if (res.data && res.data.requires_verification) {
             currentEmail = email;
@@ -144,6 +156,7 @@ function navigate(viewId) {
     if (viewId === 'notes') loadSavedNotes();
     if (viewId === 'studyroom') loadStudyRooms();
     if (viewId === 'analytics') loadAnalytics();
+    if (viewId === 'interview') loadInterviewHistory();
 }
 
 // RESUME SCORE ANALYZER
@@ -1002,6 +1015,11 @@ async function loadSavedNotes() {
 //  PEER LEARNING / STUDY ROOMS
 // ═══════════════════════════════════════════════════════
 let currentRoomId = '';
+let currentRoomName = '';
+let roomRefreshInterval = null;
+let pomodoroInterval = null;
+let pomodoroSeconds = 25 * 60;
+let pomodoroRunning = false;
 
 async function loadStudyRooms() {
     const res = await apiCall('/features/rooms');
@@ -1011,7 +1029,7 @@ async function loadStudyRooms() {
     const rooms = res.data.rooms || [];
     
     container.innerHTML = rooms.map(r => `
-        <div class="glass-card hover-glow" style="padding:20px; cursor:pointer; border:1px solid rgba(96,165,250,0.15); transition:all 0.3s;" onclick="joinRoom('${r.id}', '${r.name}')">
+        <div class="glass-card hover-glow" style="padding:20px; cursor:pointer; border:1px solid rgba(96,165,250,0.15); transition:all 0.3s;" onclick="joinRoom('${r.id}', '${r.name.replace(/'/g, "\\'")}')"> 
             <h3 style="color:#f8fafc; margin:0 0 8px 0; font-size:1.1rem;">${r.name}</h3>
             <p style="color:#94a3b8; margin:0 0 12px 0; font-size:0.85rem;">Topic: ${r.topic}</p>
             <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -1023,14 +1041,105 @@ async function loadStudyRooms() {
     `).join('');
 }
 
+async function createRoom() {
+    const name = document.getElementById('new-room-name').value.trim();
+    const topic = document.getElementById('new-room-topic').value.trim();
+    const maxMembers = document.getElementById('new-room-max').value;
+    
+    if (!name || !topic) { alert('Please enter room name and topic.'); return; }
+    
+    const res = await apiCall('/features/rooms/create', 'POST', { name, topic, max_members: parseInt(maxMembers) });
+    if (res.ok) {
+        document.getElementById('new-room-name').value = '';
+        document.getElementById('new-room-topic').value = '';
+        loadStudyRooms();
+    } else {
+        alert(res.data?.error || 'Failed to create room.');
+    }
+}
+
 async function joinRoom(roomId, roomName) {
     currentRoomId = roomId;
+    currentRoomName = roomName;
     const res = await apiCall('/features/rooms/join', 'POST', { room_id: roomId });
     if (!res.ok) return;
     
     document.getElementById('room-chat-title').textContent = `💬 ${roomName}`;
     document.getElementById('room-chat-section').style.display = 'block';
+    document.getElementById('room-member-count').textContent = `👥 ${res.data.member_count} online`;
     loadRoomMessages();
+    loadRoomMembers();
+    
+    // Auto-refresh messages every 5 seconds
+    if (roomRefreshInterval) clearInterval(roomRefreshInterval);
+    roomRefreshInterval = setInterval(() => {
+        if (currentRoomId) { loadRoomMessages(); loadRoomMembers(); }
+    }, 5000);
+
+    // Initialize Jitsi Meet
+    if (jitsiApi) {
+        jitsiApi.dispose();
+        jitsiApi = null;
+    }
+    const domain = 'meet.jit.si';
+    const options = {
+        roomName: `AIExpo_Room_${roomId.replace(/[^a-zA-Z0-9]/g, '')}`,
+        width: '100%',
+        height: '100%',
+        parentNode: document.querySelector('#jitsi-container'),
+        userInfo: {
+            email: currentEmail,
+            displayName: currentUserName || 'Student'
+        },
+        configOverwrite: { startWithAudioMuted: true, startWithVideoMuted: true },
+        interfaceConfigOverwrite: { SHOW_JITSI_WATERMARK: false }
+    };
+    jitsiApi = new JitsiMeetExternalAPI(domain, options);
+}
+
+function copyInviteLink() {
+    if (!currentRoomId) return;
+    const link = `${window.location.origin}${window.location.pathname}?room=${currentRoomId}`;
+    navigator.clipboard.writeText(link).then(() => {
+        alert('Invite link copied to clipboard! Share it with your friends.');
+    }).catch(err => {
+        alert('Failed to copy link: ' + link);
+    });
+}
+
+async function loadRoomMembers() {
+    if (!currentRoomId) return;
+    const res = await apiCall(`/features/rooms/members?room_id=${currentRoomId}`);
+    if (!res.ok) return;
+    
+    const container = document.getElementById('room-members-list');
+    const members = res.data.members || [];
+    document.getElementById('room-member-count').textContent = `👥 ${members.length} online`;
+    
+    container.innerHTML = members.map(m => {
+        const isMe = m.email === currentEmail;
+        return `<div style="padding:4px 8px; margin-bottom:3px; border-radius:6px; background:${isMe ? 'rgba(99,102,241,0.15)' : 'transparent'}; color:${isMe ? '#818cf8' : '#cbd5e1'}; font-size:0.85rem;">
+            ${isMe ? '⭐' : '👤'} ${m.name}${isMe ? ' (You)' : ''}
+        </div>`;
+    }).join('');
+}
+
+async function leaveRoom() {
+    if (currentRoomId) {
+        await apiCall('/features/rooms/leave', 'POST', { room_id: currentRoomId });
+    }
+    currentRoomId = '';
+    currentRoomName = '';
+    document.getElementById('room-chat-section').style.display = 'none';
+    if (roomRefreshInterval) { clearInterval(roomRefreshInterval); roomRefreshInterval = null; }
+    resetPomodoro();
+    
+    if (jitsiApi) {
+        jitsiApi.dispose();
+        jitsiApi = null;
+    }
+    
+    loadStudyRooms();
 }
 
 async function loadRoomMessages() {
@@ -1040,6 +1149,7 @@ async function loadRoomMessages() {
     
     const container = document.getElementById('room-messages');
     const msgs = res.data.messages || [];
+    const wasAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 50;
     
     container.innerHTML = msgs.map(m => {
         const isMe = m.email === currentEmail;
@@ -1054,7 +1164,7 @@ async function loadRoomMessages() {
     if (msgs.length === 0) {
         container.innerHTML = '<p style="text-align:center; color:#64748b; padding:40px;">No messages yet. Say hello! 👋</p>';
     }
-    container.scrollTop = container.scrollHeight;
+    if (wasAtBottom) container.scrollTop = container.scrollHeight;
 }
 
 async function sendRoomMessage() {
@@ -1065,6 +1175,66 @@ async function sendRoomMessage() {
     input.value = '';
     const res = await apiCall('/features/rooms/chat', 'POST', { room_id: currentRoomId, message: msg });
     if (res.ok) loadRoomMessages();
+}
+
+// Pomodoro Timer
+function setPomodoro(minutes) {
+    if (pomodoroRunning) { clearInterval(pomodoroInterval); pomodoroRunning = false; }
+    pomodoroSeconds = minutes * 60;
+    updatePomodoroDisplay();
+    const btn = document.getElementById('pomo-toggle-btn');
+    if (btn) { btn.textContent = '▶ Start'; btn.style.background = 'linear-gradient(135deg,#10b981,#059669)'; }
+}
+
+function togglePomodoro() {
+    const btn = document.getElementById('pomo-toggle-btn');
+    if (pomodoroRunning) {
+        clearInterval(pomodoroInterval);
+        pomodoroRunning = false;
+        if (btn) { btn.textContent = '▶ Resume'; btn.style.background = 'linear-gradient(135deg,#10b981,#059669)'; }
+    } else {
+        pomodoroRunning = true;
+        if (btn) { btn.textContent = '⏸ Pause'; btn.style.background = 'linear-gradient(135deg,#f97316,#ea580c)'; }
+        pomodoroInterval = setInterval(() => {
+            pomodoroSeconds--;
+            updatePomodoroDisplay();
+            if (pomodoroSeconds <= 0) {
+                clearInterval(pomodoroInterval);
+                pomodoroRunning = false;
+                if (btn) { btn.textContent = '▶ Start'; btn.style.background = 'linear-gradient(135deg,#10b981,#059669)'; }
+                // Sound notification
+                try {
+                    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                    const osc = ctx.createOscillator();
+                    osc.type = 'sine'; osc.frequency.value = 800;
+                    osc.connect(ctx.destination); osc.start(); osc.stop(ctx.currentTime + 0.3);
+                    setTimeout(() => { const o2 = ctx.createOscillator(); o2.type = 'sine'; o2.frequency.value = 1000; o2.connect(ctx.destination); o2.start(); o2.stop(ctx.currentTime + 0.3); }, 400);
+                } catch(e) {}
+                alert('🍅 Pomodoro complete! Take a break.');
+                pomodoroSeconds = 25 * 60;
+                updatePomodoroDisplay();
+            }
+        }, 1000);
+    }
+}
+
+function resetPomodoro() {
+    if (pomodoroInterval) clearInterval(pomodoroInterval);
+    pomodoroRunning = false;
+    pomodoroSeconds = 25 * 60;
+    updatePomodoroDisplay();
+    const btn = document.getElementById('pomo-toggle-btn');
+    if (btn) { btn.textContent = '▶ Start'; btn.style.background = 'linear-gradient(135deg,#10b981,#059669)'; }
+}
+
+function updatePomodoroDisplay() {
+    const mins = Math.floor(pomodoroSeconds / 60);
+    const secs = pomodoroSeconds % 60;
+    const display = document.getElementById('pomodoro-display');
+    if (display) {
+        display.textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+        display.style.color = pomodoroSeconds <= 60 ? '#ef4444' : (pomodoroSeconds <= 300 ? '#fcd34d' : '#f8fafc');
+    }
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1128,10 +1298,13 @@ async function loadAnalytics() {
 let interviewSession = null;
 let currentQuestionIndex = 0;
 let interviewQuestions = [];
+let questionTimer = null;
+let questionTimeLeft = 90;
 
 async function startInterview() {
     const course = document.getElementById('interview-course').value;
-    const res = await apiCall('/features/interview/start', 'POST', { course });
+    const difficulty = document.getElementById('interview-difficulty')?.value || 'intermediate';
+    const res = await apiCall('/features/interview/start', 'POST', { course, difficulty });
     if (!res.ok) return;
     
     interviewSession = res.data.session_id;
@@ -1153,15 +1326,40 @@ function showInterviewQuestion() {
     
     const q = interviewQuestions[currentQuestionIndex];
     const area = document.getElementById('interview-area');
+    const total = interviewQuestions.length;
+    const progressPct = ((currentQuestionIndex) / total) * 100;
+    questionTimeLeft = 90;
     
     area.innerHTML = `
         <div style="background:rgba(0,0,0,0.3); padding:25px; border-radius:12px; border:1px solid rgba(236,72,153,0.2);">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-                <span style="color:#ec4899; font-weight:700;">Question ${currentQuestionIndex + 1} of ${interviewQuestions.length}</span>
-                <span style="color:#64748b; font-size:0.85rem;">${document.getElementById('interview-course').value}</span>
+            <!-- Progress Bar -->
+            <div style="margin-bottom:15px;">
+                <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                    <span style="color:#94a3b8; font-size:0.8rem;">Progress</span>
+                    <span style="color:#ec4899; font-size:0.8rem; font-weight:600;">Question ${currentQuestionIndex + 1} of ${total}</span>
+                </div>
+                <div style="height:6px; background:rgba(255,255,255,0.08); border-radius:3px; overflow:hidden;">
+                    <div style="height:100%; width:${progressPct}%; background:linear-gradient(90deg,#ec4899,#f43f5e); border-radius:3px; transition:width 0.5s ease;"></div>
+                </div>
             </div>
+            
+            <!-- Timer -->
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                <span style="color:#ec4899; font-weight:700;">Question ${currentQuestionIndex + 1} of ${total}</span>
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <span style="color:#64748b; font-size:0.85rem;">${document.getElementById('interview-course').value}</span>
+                    <span id="question-timer" style="background:rgba(239,68,68,0.15); color:#ef4444; padding:5px 12px; border-radius:20px; font-weight:700; font-family:monospace; font-size:0.95rem;">⏱ 1:30</span>
+                </div>
+            </div>
+            
             <h3 style="color:#f8fafc; font-size:1.15rem; line-height:1.5; margin:0 0 20px 0;">${q.question}</h3>
-            <textarea id="interview-answer" rows="6" placeholder="Type your answer here... Be detailed and mention key concepts." style="width:100%; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:8px; padding:15px; color:#f8fafc; font-size:0.95rem; resize:vertical;"></textarea>
+            <textarea id="interview-answer" rows="6" placeholder="Type your answer here... Be detailed and mention key concepts." 
+                style="width:100%; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:8px; padding:15px; color:#f8fafc; font-size:0.95rem; resize:vertical;"
+                oninput="updateWordCount()"></textarea>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;">
+                <span id="word-count" style="color:#64748b; font-size:0.8rem;">0 words</span>
+                <span style="color:#64748b; font-size:0.8rem;">💡 Aim for 50+ words for best results</span>
+            </div>
             <div style="display:flex; gap:10px; margin-top:15px;">
                 <button onclick="submitInterviewAnswer()" style="flex:1; background:linear-gradient(135deg,#10b981,#059669); padding:12px;">✅ Submit Answer</button>
                 <button onclick="skipInterviewQuestion()" style="background:rgba(255,255,255,0.1); padding:12px 20px; color:#94a3b8;">Skip →</button>
@@ -1169,9 +1367,61 @@ function showInterviewQuestion() {
             <div id="answer-feedback" style="margin-top:15px;"></div>
         </div>
     `;
+    
+    startQuestionTimer();
+}
+
+function updateWordCount() {
+    const textarea = document.getElementById('interview-answer');
+    const countEl = document.getElementById('word-count');
+    if (textarea && countEl) {
+        const words = textarea.value.trim().split(/\s+/).filter(w => w.length > 0).length;
+        countEl.textContent = `${words} word${words !== 1 ? 's' : ''}`;
+        countEl.style.color = words >= 50 ? '#34d399' : (words >= 20 ? '#fcd34d' : '#64748b');
+    }
+}
+
+function startQuestionTimer() {
+    if (questionTimer) clearInterval(questionTimer);
+    questionTimeLeft = 90;
+    updateTimerDisplay();
+    
+    questionTimer = setInterval(() => {
+        questionTimeLeft--;
+        updateTimerDisplay();
+        if (questionTimeLeft <= 0) {
+            clearInterval(questionTimer);
+            questionTimer = null;
+            // Auto-submit or move to next
+            const answer = document.getElementById('interview-answer')?.value;
+            if (answer && answer.trim()) {
+                submitInterviewAnswer();
+            } else {
+                skipInterviewQuestion();
+            }
+        }
+    }, 1000);
+}
+
+function updateTimerDisplay() {
+    const timerEl = document.getElementById('question-timer');
+    if (!timerEl) return;
+    const mins = Math.floor(questionTimeLeft / 60);
+    const secs = questionTimeLeft % 60;
+    timerEl.textContent = `⏱ ${mins}:${String(secs).padStart(2, '0')}`;
+    if (questionTimeLeft <= 15) {
+        timerEl.style.background = 'rgba(239,68,68,0.3)';
+        timerEl.style.color = '#ef4444';
+        timerEl.style.animation = 'pulse 1s infinite';
+    } else if (questionTimeLeft <= 30) {
+        timerEl.style.background = 'rgba(252,211,77,0.15)';
+        timerEl.style.color = '#fcd34d';
+    }
 }
 
 async function submitInterviewAnswer() {
+    if (questionTimer) { clearInterval(questionTimer); questionTimer = null; }
+    
     const answer = document.getElementById('interview-answer').value;
     if (!answer.trim()) return alert('Please type an answer.');
     
@@ -1205,6 +1455,7 @@ async function submitInterviewAnswer() {
 }
 
 function skipInterviewQuestion() {
+    if (questionTimer) { clearInterval(questionTimer); questionTimer = null; }
     currentQuestionIndex++;
     showInterviewQuestion();
 }
@@ -1215,6 +1466,8 @@ function nextInterviewQuestion() {
 }
 
 async function showInterviewResults() {
+    if (questionTimer) { clearInterval(questionTimer); questionTimer = null; }
+    
     const res = await apiCall(`/features/interview/results?session_id=${interviewSession}`);
     if (!res.ok) return;
     
@@ -1242,11 +1495,42 @@ async function showInterviewResults() {
                 `).join('')}
             </div>
             
-            <button onclick="document.getElementById('interview-setup').style.display='block'; document.getElementById('interview-results').style.display='none';" 
+            <button onclick="document.getElementById('interview-setup').style.display='block'; document.getElementById('interview-results').style.display='none'; loadInterviewHistory();" 
                 style="margin-top:20px; background:linear-gradient(135deg,#ec4899,#f43f5e); padding:12px 30px;">🔄 Start New Interview</button>
         </div>
     `;
+    
+    loadInterviewHistory();
 }
+
+async function loadInterviewHistory() {
+    const res = await apiCall('/features/interview/history');
+    if (!res.ok) return;
+    
+    const container = document.getElementById('interview-history');
+    const history = res.data.history || [];
+    
+    if (history.length === 0) {
+        container.innerHTML = '<p style="color:#64748b; font-size:0.85rem;">No interview history yet. Start your first mock interview above!</p>';
+        return;
+    }
+    
+    container.innerHTML = history.map(h => {
+        const scoreColor = h.average_score >= 8 ? '#34d399' : h.average_score >= 5 ? '#fcd34d' : '#ef4444';
+        const date = h.date ? new Date(h.date).toLocaleDateString() : 'N/A';
+        return `<div style="display:flex; justify-content:space-between; align-items:center; padding:12px 15px; background:rgba(255,255,255,0.03); border-radius:8px; margin-bottom:6px; border-left:3px solid ${scoreColor};">
+            <div>
+                <span style="color:#f8fafc; font-weight:600;">${h.course}</span>
+                <span style="color:#64748b; font-size:0.8rem; margin-left:10px;">${date}</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:15px;">
+                <span style="color:#94a3b8; font-size:0.85rem;">${h.questions_answered}/${h.total_questions} answered</span>
+                <span style="color:${scoreColor}; font-weight:700; font-size:1.1rem;">${h.average_score}/10</span>
+            </div>
+        </div>`;
+    }).join('');
+}
+
 
 
 window.onload = () => {

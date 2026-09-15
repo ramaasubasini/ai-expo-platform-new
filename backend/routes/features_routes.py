@@ -450,6 +450,72 @@ def get_room_messages():
     return jsonify({"messages": room.get("messages", [])}), 200
 
 
+@features_bp.route('/rooms/create', methods=['POST'])
+@jwt_required()
+def create_room():
+    data = request.get_json(silent=True) or {}
+    name = data.get('name', '').strip()
+    topic = data.get('topic', '').strip()
+    max_members = int(data.get('max_members', 20))
+    
+    if not name or not topic:
+        return jsonify({"error": "Room name and topic are required"}), 400
+    
+    current_email = get_jwt_identity()
+    room_id = f"custom-{name.lower().replace(' ', '-')}-{datetime.utcnow().strftime('%H%M%S')}"
+    
+    room = {
+        "id": room_id,
+        "name": name,
+        "topic": topic,
+        "members": [current_email],
+        "messages": [],
+        "max_members": min(max_members, 50),
+        "created_by": current_email
+    }
+    study_rooms_collection.insert_one(room)
+    
+    return jsonify({"message": "Room created!", "room": {"id": room_id, "name": name, "topic": topic}}), 201
+
+
+@features_bp.route('/rooms/leave', methods=['POST'])
+@jwt_required()
+def leave_room():
+    data = request.get_json(silent=True) or {}
+    room_id = data.get('room_id', '')
+    current_email = get_jwt_identity()
+    
+    room = study_rooms_collection.find_one({"id": room_id})
+    if not isinstance(room, dict):
+        return jsonify({"error": "Room not found"}), 404
+    
+    members = room.get("members", [])
+    if current_email in members:
+        members.remove(current_email)
+        study_rooms_collection.update_one({"id": room_id}, {"$set": {"members": members}})
+    
+    return jsonify({"message": "Left the room", "member_count": len(members)}), 200
+
+
+@features_bp.route('/rooms/members', methods=['GET'])
+def get_room_members():
+    room_id = request.args.get('room_id', '')
+    room = study_rooms_collection.find_one({"id": room_id})
+    if not isinstance(room, dict):
+        return jsonify({"error": "Room not found"}), 404
+    
+    members = room.get("members", [])
+    member_details = []
+    for email in members:
+        user = users_collection.find_one({"email": email})
+        name = "Anonymous"
+        if isinstance(user, dict):
+            name = user.get("name", "Anonymous")
+        member_details.append({"name": name, "email": email})
+    
+    return jsonify({"members": member_details, "count": len(member_details)}), 200
+
+
 # ═══════════════════════════════════════════════════════
 #  4. LEARNING ANALYTICS DASHBOARD
 # ═══════════════════════════════════════════════════════
@@ -559,6 +625,188 @@ INTERVIEW_QUESTIONS = {
         {"q": "What is gradient descent and its variants?", "key_points": ["optimization", "learning rate", "batch/stochastic/mini-batch", "convergence"]},
         {"q": "Explain precision, recall, and F1-score.", "key_points": ["true positives", "false positives", "false negatives", "harmonic mean"]},
         {"q": "What is cross-validation and why is it useful?", "key_points": ["k-fold", "prevent overfitting", "robust evaluation", "stratified"]},
+    ],
+    "Java": [
+        {"q": "What are OOP concepts in Java?", "key_points": ["encapsulation", "inheritance", "polymorphism", "abstraction"]},
+        {"q": "Explain the Java Collections Framework.", "key_points": ["list", "set", "map", "interfaces"]},
+        {"q": "How does multithreading work in Java?", "key_points": ["thread class", "runnable interface", "synchronization", "concurrency"]},
+        {"q": "What is the JVM and how does it work?", "key_points": ["java virtual machine", "bytecode", "class loader", "garbage collection"]},
+        {"q": "How do you handle exceptions in Java?", "key_points": ["try-catch", "finally", "throw", "throws"]},
+    ],
+    "C": [
+        {"q": "Explain pointers in C.", "key_points": ["memory address", "dereference", "pointer arithmetic", "null pointer"]},
+        {"q": "How is memory management handled in C?", "key_points": ["malloc", "calloc", "realloc", "free"]},
+        {"q": "What are arrays in C?", "key_points": ["contiguous memory", "index", "multidimensional", "pointer relationship"]},
+        {"q": "How does file handling work in C?", "key_points": ["fopen", "fclose", "fread", "fwrite"]},
+        {"q": "What are C preprocessors?", "key_points": ["#define", "#include", "#ifdef", "macros"]},
+    ],
+    "C++": [
+        {"q": "What is the STL in C++?", "key_points": ["containers", "algorithms", "iterators", "vectors"]},
+        {"q": "Explain templates in C++.", "key_points": ["generic programming", "function templates", "class templates", "type safety"]},
+        {"q": "What are smart pointers?", "key_points": ["unique_ptr", "shared_ptr", "weak_ptr", "memory leaks"]},
+        {"q": "What are virtual functions?", "key_points": ["polymorphism", "override", "vtable", "dynamic binding"]},
+        {"q": "Explain RAII in C++.", "key_points": ["resource acquisition is initialization", "destructor", "exception safety", "scope"]},
+    ],
+    "HTML": [
+        {"q": "What are semantic tags in HTML?", "key_points": ["meaning", "header", "article", "accessibility"]},
+        {"q": "How do HTML forms work?", "key_points": ["input", "method", "action", "validation"]},
+        {"q": "Why is accessibility important in HTML?", "key_points": ["aria attributes", "alt text", "screen readers", "inclusive design"]},
+        {"q": "What are some HTML5 APIs?", "key_points": ["geolocation", "local storage", "canvas", "web workers"]},
+        {"q": "How does HTML affect SEO?", "key_points": ["meta tags", "title", "heading hierarchy", "crawlers"]},
+    ],
+    "CSS": [
+        {"q": "Explain Flexbox in CSS.", "key_points": ["one-dimensional", "main axis", "cross axis", "justify-content"]},
+        {"q": "What is CSS Grid?", "key_points": ["two-dimensional", "rows", "columns", "templates"]},
+        {"q": "How do you create animations in CSS?", "key_points": ["keyframes", "transition", "duration", "easing"]},
+        {"q": "What is responsive design?", "key_points": ["media queries", "breakpoints", "fluid layouts", "mobile-first"]},
+        {"q": "Explain CSS specificity.", "key_points": ["inline", "id", "class", "important"]},
+    ],
+    "React JS": [
+        {"q": "What are React hooks?", "key_points": ["useState", "useEffect", "functional components", "custom hooks"]},
+        {"q": "Explain the Virtual DOM.", "key_points": ["reconciliation", "diffing algorithm", "performance", "ui state"]},
+        {"q": "How do you handle state management in React?", "key_points": ["local state", "props", "redux", "context"]},
+        {"q": "What is the React component lifecycle?", "key_points": ["mounting", "updating", "unmounting", "useEffect"]},
+        {"q": "What is the Context API?", "key_points": ["prop drilling", "provider", "consumer", "global state"]},
+    ],
+    "Node JS": [
+        {"q": "What is the event loop in Node.js?", "key_points": ["non-blocking", "asynchronous", "callbacks", "libuv"]},
+        {"q": "Explain streams in Node.js.", "key_points": ["readable", "writable", "duplex", "transform"]},
+        {"q": "What is middleware in Node.js?", "key_points": ["request", "response", "next", "processing"]},
+        {"q": "How does clustering work in Node.js?", "key_points": ["child processes", "cpu cores", "load balancing", "worker"]},
+        {"q": "Explain modules in Node.js.", "key_points": ["require", "exports", "commonjs", "es modules"]},
+    ],
+    "SQL": [
+        {"q": "Explain the different types of joins in SQL.", "key_points": ["inner join", "left join", "right join", "full join"]},
+        {"q": "What is indexing in SQL?", "key_points": ["performance", "b-tree", "primary key", "clustered"]},
+        {"q": "Explain database normalization.", "key_points": ["reduce redundancy", "1nf", "2nf", "3nf"]},
+        {"q": "What are database transactions?", "key_points": ["acid properties", "commit", "rollback", "concurrency"]},
+        {"q": "What is a subquery in SQL?", "key_points": ["nested query", "select", "where", "from"]},
+    ],
+    "MongoDB": [
+        {"q": "How does the aggregation framework work in MongoDB?", "key_points": ["pipeline", "$match", "$group", "$project"]},
+        {"q": "Explain indexing in MongoDB.", "key_points": ["query performance", "compound index", "unique index", "explain plan"]},
+        {"q": "What are best practices for schema design in MongoDB?", "key_points": ["embedding", "referencing", "denormalization", "document size"]},
+        {"q": "How does replication work in MongoDB?", "key_points": ["replica set", "primary", "secondary", "failover"]},
+        {"q": "What is sharding in MongoDB?", "key_points": ["horizontal scaling", "shard key", "chunks", "router"]},
+    ],
+    "Express JS": [
+        {"q": "What is middleware in Express JS?", "key_points": ["req", "res", "next", "app.use"]},
+        {"q": "How does routing work in Express JS?", "key_points": ["endpoints", "http methods", "router object", "parameters"]},
+        {"q": "How do you handle errors in Express JS?", "key_points": ["error middleware", "status codes", "try-catch", "next(err)"]},
+        {"q": "How do you implement authentication in Express?", "key_points": ["jwt", "passport", "sessions", "tokens"]},
+        {"q": "What are REST APIs in the context of Express?", "key_points": ["stateless", "json", "crud", "resource-based"]},
+    ],
+    "Flask": [
+        {"q": "What are Flask blueprints?", "key_points": ["modular", "routing", "application factory", "organization"]},
+        {"q": "Explain Jinja2 templating in Flask.", "key_points": ["templates", "variables", "control structures", "inheritance"]},
+        {"q": "How do you use decorators in Flask?", "key_points": ["@app.route", "endpoints", "wrappers", "authentication"]},
+        {"q": "What are Flask extensions?", "key_points": ["flask-sqlalchemy", "flask-login", "integration", "ecosystem"]},
+        {"q": "How do you build REST APIs with Flask?", "key_points": ["jsonify", "methods", "flask-restful", "marshmallow"]},
+    ],
+    "Django": [
+        {"q": "Explain the Django ORM.", "key_points": ["models", "querysets", "migrations", "database abstraction"]},
+        {"q": "How do Django views work?", "key_points": ["function-based", "class-based", "request", "response"]},
+        {"q": "What is middleware in Django?", "key_points": ["hooks", "request/response processing", "security", "sessions"]},
+        {"q": "What is the Django admin interface?", "key_points": ["auto-generated", "models registration", "management", "crud"]},
+        {"q": "How do you work with forms in Django?", "key_points": ["validation", "modelform", "csrf", "widgets"]},
+    ],
+    "Cloud Computing": [
+        {"q": "Explain IaaS, PaaS, and SaaS.", "key_points": ["infrastructure", "platform", "software", "shared responsibility"]},
+        {"q": "What is serverless computing?", "key_points": ["aws lambda", "no server management", "event-driven", "pay-per-use"]},
+        {"q": "Explain the use of containers in cloud computing.", "key_points": ["docker", "isolation", "portability", "microservices"]},
+        {"q": "How does auto-scaling work in the cloud?", "key_points": ["elasticity", "scale out", "scale in", "metrics"]},
+        {"q": "What is a CDN?", "key_points": ["content delivery network", "edge locations", "caching", "latency"]},
+    ],
+    "Cyber Security": [
+        {"q": "What is the CIA triad?", "key_points": ["confidentiality", "integrity", "availability", "foundation"]},
+        {"q": "Explain the difference between symmetric and asymmetric encryption.", "key_points": ["public key", "private key", "aes", "rsa"]},
+        {"q": "What is XSS and how do you prevent it?", "key_points": ["cross-site scripting", "sanitization", "escaping", "csp"]},
+        {"q": "What is SQL injection and how do you prevent it?", "key_points": ["malicious queries", "parameterized queries", "prepared statements", "orm"]},
+        {"q": "What is the OWASP Top 10?", "key_points": ["vulnerabilities", "security risks", "awareness", "prevention"]},
+    ],
+    "DevOps": [
+        {"q": "What is CI/CD?", "key_points": ["continuous integration", "continuous deployment", "automation", "pipelines"]},
+        {"q": "How is Docker used in DevOps?", "key_points": ["containerization", "consistent environments", "dockerfile", "images"]},
+        {"q": "What is Kubernetes?", "key_points": ["orchestration", "pods", "scaling", "clusters"]},
+        {"q": "Why is monitoring important in DevOps?", "key_points": ["observability", "logs", "metrics", "prometheus"]},
+        {"q": "What is Infrastructure as Code (IaC)?", "key_points": ["terraform", "automation", "version control", "ansible"]},
+    ],
+    "Git & GitHub": [
+        {"q": "How does branching work in Git?", "key_points": ["feature branches", "isolation", "main", "checkout"]},
+        {"q": "Explain the process of merging in Git.", "key_points": ["fast-forward", "merge commit", "integration", "branches"]},
+        {"q": "What is rebasing in Git?", "key_points": ["rewrite history", "linear history", "rebase vs merge", "conflicts"]},
+        {"q": "What are Pull Requests (PRs)?", "key_points": ["code review", "collaboration", "approval", "github"]},
+        {"q": "How do you resolve merge conflicts?", "key_points": ["manual resolution", "git status", "commit", "changes"]},
+    ],
+    "OOP": [
+        {"q": "What are the SOLID principles?", "key_points": ["single responsibility", "open/closed", "liskov substitution", "interface segregation", "dependency inversion"]},
+        {"q": "What are design patterns?", "key_points": ["reusable solutions", "singleton", "factory", "observer"]},
+        {"q": "Explain encapsulation in OOP.", "key_points": ["data hiding", "private modifiers", "getters/setters", "bundling"]},
+        {"q": "What is polymorphism?", "key_points": ["many forms", "method overriding", "method overloading", "interfaces"]},
+        {"q": "Explain abstraction in OOP.", "key_points": ["hiding complexity", "abstract classes", "interfaces", "essential features"]},
+    ],
+    "Operating Systems": [
+        {"q": "What are CPU scheduling algorithms?", "key_points": ["round robin", "fcfs", "sjf", "priority"]},
+        {"q": "How does memory management work in OS?", "key_points": ["paging", "segmentation", "virtual memory", "swapping"]},
+        {"q": "What are deadlocks and how to prevent them?", "key_points": ["mutual exclusion", "hold and wait", "circular wait", "banker's algorithm"]},
+        {"q": "Explain file systems in an OS.", "key_points": ["fat", "ntfs", "inodes", "directories"]},
+        {"q": "What is a process vs a thread?", "key_points": ["execution unit", "shared memory", "context switch", "lightweight"]},
+    ],
+    "Computer Networks": [
+        {"q": "Explain the OSI model.", "key_points": ["7 layers", "physical", "network", "application"]},
+        {"q": "What is the difference between TCP and UDP?", "key_points": ["reliable", "connectionless", "handshake", "speed"]},
+        {"q": "How does DNS work?", "key_points": ["domain name system", "ip address", "resolution", "root servers"]},
+        {"q": "Explain the HTTP protocol.", "key_points": ["stateless", "methods", "status codes", "request/response"]},
+        {"q": "How does network routing work?", "key_points": ["routers", "ip addresses", "routing tables", "protocols"]},
+    ],
+    "Blockchain": [
+        {"q": "What is a consensus mechanism in Blockchain?", "key_points": ["proof of work", "proof of stake", "agreement", "decentralized"]},
+        {"q": "What are smart contracts?", "key_points": ["self-executing code", "ethereum", "solidity", "automation"]},
+        {"q": "What are DApps?", "key_points": ["decentralized applications", "frontend", "smart contract backend", "web3"]},
+        {"q": "How is cryptography used in Blockchain?", "key_points": ["public key", "private key", "hashing", "digital signatures"]},
+        {"q": "What is DeFi?", "key_points": ["decentralized finance", "lending", "liquidity pools", "tokens"]},
+    ],
+    "Deep Learning": [
+        {"q": "What is backpropagation?", "key_points": ["chain rule", "gradients", "weights update", "error minimization"]},
+        {"q": "Explain Convolutional Neural Networks (CNNs).", "key_points": ["image processing", "convolution layers", "pooling", "filters"]},
+        {"q": "What are Recurrent Neural Networks (RNNs)?", "key_points": ["sequential data", "memory", "lstm", "vanishing gradient"]},
+        {"q": "How do Transformers work?", "key_points": ["self-attention", "parallelization", "nlp", "bert/gpt"]},
+        {"q": "What are optimization algorithms in Deep Learning?", "key_points": ["adam", "sgd", "rmsprop", "learning rate"]},
+    ],
+    "AI Basics": [
+        {"q": "What are search algorithms in AI?", "key_points": ["a* search", "bfs", "dfs", "heuristics"]},
+        {"q": "What is Natural Language Processing (NLP)?", "key_points": ["text analysis", "tokenization", "sentiment analysis", "language models"]},
+        {"q": "What is Computer Vision?", "key_points": ["image recognition", "object detection", "pixels", "classification"]},
+        {"q": "Why is ethics important in AI?", "key_points": ["bias", "fairness", "privacy", "accountability"]},
+        {"q": "What is knowledge representation?", "key_points": ["ontologies", "semantic networks", "rules", "logic"]},
+    ],
+    "Data Science": [
+        {"q": "How is pandas used in Data Science?", "key_points": ["dataframes", "manipulation", "cleaning", "series"]},
+        {"q": "Why is data visualization important?", "key_points": ["matplotlib", "seaborn", "patterns", "storytelling"]},
+        {"q": "What role do statistics play in Data Science?", "key_points": ["mean", "variance", "distributions", "probability"]},
+        {"q": "What is Exploratory Data Analysis (EDA)?", "key_points": ["missing values", "outliers", "correlation", "insights"]},
+        {"q": "How does hypothesis testing work?", "key_points": ["p-value", "null hypothesis", "significance level", "t-test"]},
+    ],
+    "Kotlin": [
+        {"q": "How does Kotlin handle null safety?", "key_points": ["nullable types", "safe call", "elvis operator", "not-null assertion"]},
+        {"q": "What are coroutines in Kotlin?", "key_points": ["asynchronous", "lightweight threads", "suspend", "dispatchers"]},
+        {"q": "What are data classes in Kotlin?", "key_points": ["boilerplate", "equals", "hashcode", "copy"]},
+        {"q": "What are extension functions?", "key_points": ["add functionality", "without inheritance", "receiver type", "utility"]},
+        {"q": "How is Kotlin used in Android development?", "key_points": ["official language", "interoperability", "jetpack", "views"]},
+    ],
+    "R Programming": [
+        {"q": "What are vectors in R?", "key_points": ["c() function", "atomic", "operations", "recycling"]},
+        {"q": "How do dataframes work in R?", "key_points": ["tables", "columns", "rows", "read.csv"]},
+        {"q": "What is ggplot2 used for?", "key_points": ["visualization", "grammar of graphics", "aesthetics", "geoms"]},
+        {"q": "How do you perform statistical tests in R?", "key_points": ["t.test", "anova", "lm", "summary"]},
+        {"q": "What is dplyr in R?", "key_points": ["data manipulation", "filter", "mutate", "pipe operator"]},
+    ],
+    "UI/UX Design": [
+        {"q": "What are UX heuristics?", "key_points": ["nielsen", "usability", "consistency", "feedback"]},
+        {"q": "What is the purpose of wireframing?", "key_points": ["layout", "low-fidelity", "structure", "iteration"]},
+        {"q": "How is color theory applied in UI design?", "key_points": ["contrast", "accessibility", "palettes", "emotion"]},
+        {"q": "Why is typography important in UI?", "key_points": ["readability", "hierarchy", "fonts", "alignment"]},
+        {"q": "What is prototyping?", "key_points": ["interactive", "high-fidelity", "user testing", "flow"]},
     ]
 }
 
@@ -703,3 +951,27 @@ def get_results():
         "overall_rating": overall,
         "total_questions": len(session.get("questions", []))
     }), 200
+
+
+@features_bp.route('/interview/history', methods=['GET'])
+@jwt_required()
+def get_interview_history():
+    current_email = get_jwt_identity()
+    sessions = interview_collection.find({"email": current_email})
+    history = []
+    for s in sessions:
+        if isinstance(s, dict):
+            scores = s.get("scores", [])
+            total = sum(sc.get("score", 0) for sc in scores)
+            avg = round(total / max(len(scores), 1), 1) if scores else 0
+            history.append({
+                "session_id": s.get("session_id", ""),
+                "course": s.get("course", ""),
+                "date": s.get("started_at", ""),
+                "questions_answered": len(scores),
+                "total_questions": len(s.get("questions", [])),
+                "average_score": avg,
+                "status": s.get("status", "completed")
+            })
+    history.reverse()
+    return jsonify({"history": history[:20]}), 200
