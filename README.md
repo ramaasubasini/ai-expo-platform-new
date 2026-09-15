@@ -1,3 +1,6 @@
+🚀**Live Demo:**
+https://ai-expo-platform-new.onrender.com
+
 # AI Expo Platform
 
 A full-stack AI-powered learning platform with mock interviews, study rooms, AI tutoring, resume analysis, and real-time face-to-face WebRTC video integration.
